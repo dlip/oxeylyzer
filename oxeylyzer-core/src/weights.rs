@@ -10,14 +10,14 @@ pub struct WeightDefaultsLoad {
     trigram_precision: usize,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Default)]
 pub struct WeightDefaults {
     pub language: String,
     pub keyboard_type: KeyboardType,
     pub trigram_precision: usize,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, Default)]
 pub struct MaxFingerUse {
     pub penalty: f64,
     pub pinky: f64,
@@ -26,7 +26,7 @@ pub struct MaxFingerUse {
     pub index: f64,
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, Default)]
 pub struct Weights {
     pub heatmap: f64,
     pub lateral_penalty: f64,
@@ -38,6 +38,7 @@ pub struct Weights {
     pub dsfb_ratio3: f64,
     pub scissors: f64,
     pub lsbs: f64,
+    pub pinky_ring_bigrams: f64,
     pub inrolls: f64,
     pub outrolls: f64,
     pub onehands: f64,
@@ -58,20 +59,21 @@ struct ConfigLoad {
 }
 
 impl ConfigLoad {
-    pub fn new() -> Self {
+    pub fn load() -> Self {
         let mut f = File::open("config.toml").expect("The config.toml is missing! Help!");
 
-        let mut buf = Vec::new();
-        f.read_to_end(&mut buf)
+        let mut buf = String::new();
+        f.read_to_string(&mut buf)
             .expect("Failed to read config.toml for some reason");
 
         let mut res: Self =
-            toml::from_slice(&buf).expect("Failed to parse config.toml. Values might be missing.");
-        res.pins = res.pins.trim().replace(' ', "").replace('\n', "");
+            toml::from_str(&buf).expect("Failed to parse config.toml. Values might be missing.");
+        res.pins = res.pins.trim().replace([' ', '\n'], "");
         res
     }
 }
 
+#[derive(Debug, Clone, Default)]
 pub struct Config {
     pub pins: Vec<usize>,
     pub defaults: WeightDefaults,
@@ -79,8 +81,8 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new() -> Self {
-        let mut load = ConfigLoad::new();
+    pub fn with_loaded_weights() -> Self {
+        let mut load = ConfigLoad::load();
 
         load.weights.max_finger_use = MaxFingerUse {
             penalty: load.weights.max_finger_use.penalty,
@@ -95,8 +97,8 @@ impl Config {
                 pins.push(i);
             }
         }
-        load.weights.dsfb_ratio2 = (load.weights.dsfb_ratio * 6.0).powi(3) / 6.5;
-        load.weights.dsfb_ratio3 = (load.weights.dsfb_ratio * 6.0).powi(5) / 7.0;
+        load.weights.dsfb_ratio2 = load.weights.dsfb_ratio.powi(2);
+        load.weights.dsfb_ratio3 = load.weights.dsfb_ratio.powi(3);
         Self {
             pins,
             defaults: WeightDefaults {
@@ -109,12 +111,12 @@ impl Config {
         }
     }
 
-    pub fn default() -> Self {
+    pub fn with_defaults() -> Self {
         Self {
             defaults: WeightDefaults {
                 language: "english".to_string(),
                 keyboard_type: KeyboardType::AnsiAngle,
-                trigram_precision: 1000,
+                trigram_precision: 100000,
             },
             weights: Weights {
                 heatmap: 0.85,
@@ -125,6 +127,7 @@ impl Config {
                 dsfb_ratio3: (0.08 * 6.0f64).powi(3),
                 scissors: 5.0,
                 lsbs: 2.0,
+                pinky_ring_bigrams: 0.0,
                 inrolls: 1.6,
                 outrolls: 1.3,
                 onehands: 0.8,

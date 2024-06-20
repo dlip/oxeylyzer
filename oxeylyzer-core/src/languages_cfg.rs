@@ -1,8 +1,8 @@
-use fxhash::FxHashMap;
+use ahash::AHashMap as HashMap;
 use std::io::Read;
 
-pub fn read_cfg() -> FxHashMap<String, String> {
-    let mut res = FxHashMap::default();
+pub fn read_cfg() -> HashMap<String, String> {
+    let mut res = HashMap::default();
 
     if let Ok(mut f) = std::fs::File::open("languages_default.cfg") {
         let mut file_contents = String::new();
@@ -16,7 +16,7 @@ pub fn read_cfg() -> FxHashMap<String, String> {
                     }
                 }
                 Err(error_msg) => {
-                    if error_msg.len() > 0 {
+                    if !error_msg.is_empty() {
                         println!("{error_msg}")
                     }
                 }
@@ -36,17 +36,17 @@ struct LangsChars {
 }
 
 fn parse_line(line: &str) -> Result<LangsChars, String> {
-    let line_content = line.split("#").collect::<Vec<&str>>();
-    if line_content.len() > 0 && line_content[0].len() > 0 {
-        let split_langs_chars = line_content[0].split(":").collect::<Vec<&str>>();
+    let line_content = line.split('#').collect::<Vec<&str>>();
+    if !line_content.is_empty() && !line_content[0].is_empty() {
+        let split_langs_chars = line_content[0].split(':').collect::<Vec<&str>>();
         if split_langs_chars.len() == 2 {
             let langs = split_langs_chars[0]
                 .trim()
-                .split(",")
+                .split(',')
                 .map(|s| s.trim().to_owned())
                 .collect::<Vec<String>>();
             let chars = split_langs_chars[1].trim();
-            if langs.len() > 0 {
+            if !langs.is_empty() {
                 let cc = chars.chars().count();
                 if cc == 30 {
                     Ok(LangsChars {

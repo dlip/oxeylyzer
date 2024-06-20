@@ -1,7 +1,9 @@
+use std::collections::hash_map::Entry;
+
 use crate::languages_cfg::read_cfg;
 
 use arrayvec::ArrayVec;
-use fxhash::FxHashMap;
+use ahash::AHashMap as HashMap;
 use nanorand::{tls_rng, Rng};
 use serde::Deserialize;
 
@@ -34,6 +36,12 @@ const AFFECTS_LSB: [bool; 30] = [
     false, false,
 ];
 
+const AFFECTS_PINKY_RING: [bool; 30] = [
+    true, true, false, false, false, false, false, false, true, true,
+    true, true, false, false, false, false, false, false, true, true,
+    true, true, false, false, false, false, false, false, true, true,
+];
+
 impl PosPair {
     pub const fn default() -> Self {
         Self(0, 0)
@@ -51,6 +59,11 @@ impl PosPair {
     #[inline]
     pub fn affects_lsb(&self) -> bool {
         unsafe { *AFFECTS_LSB.get_unchecked(self.0) || *AFFECTS_LSB.get_unchecked(self.1) }
+    }
+
+    #[inline]
+    pub fn affects_pinky_ring(&self) -> bool {
+        unsafe { *AFFECTS_PINKY_RING.get_unchecked(self.0) || *AFFECTS_PINKY_RING.get_unchecked(self.1) }
     }
 }
 
@@ -82,7 +95,7 @@ const fn get_possible_swaps() -> [PosPair; 435] {
 #[derive(Clone, Debug, Default)]
 pub struct ConvertU8 {
     from: Vec<char>,
-    to: FxHashMap<char, u8>,
+    to: HashMap<char, u8>,
 }
 
 impl ConvertU8 {
@@ -165,10 +178,10 @@ impl ConvertU8 {
     }
 
     pub fn insert_single(&mut self, c: char) {
-        if self.to.get(&c).is_none() {
-            let new = self.len();
+        let new = self.len();
+        if let Entry::Vacant(e) = self.to.entry(c) {
             self.from.push(c);
-            self.to.insert(c, new);
+            e.insert(new);
         }
     }
 
@@ -187,7 +200,7 @@ impl ConvertU8 {
 
     pub fn as_str(&self, input: &[u8]) -> String {
         input
-            .into_iter()
+            .iter()
             .map(|&c| self.from.get(c as usize).unwrap_or(&' '))
             .collect()
     }
@@ -197,10 +210,15 @@ impl ConvertU8 {
 
         self.to.len() as u8
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.to.len() == 0
+    }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Default)]
 pub enum KeyboardType {
+    #[default]
     AnsiAngle,
     IsoAngle,
     RowstagDefault,
@@ -260,10 +278,10 @@ pub fn get_effort_map(heatmap_weight: f64, ktype: KeyboardType) -> [f64; 30] {
         ],
     };
 
-    for i in 0..res.len() {
-        res[i] -= 0.2;
-        res[i] /= 4.5;
-        res[i] *= heatmap_weight;
+    for r in &mut res {
+        *r -= 0.2;
+        *r /= 4.5;
+        *r *= heatmap_weight;
     }
 
     res
@@ -411,6 +429,30 @@ pub const fn get_lsb_indices() -> [PosPair; 16] {
     res
 }
 
+pub const fn get_pinky_ring_indices() -> [PosPair; 18] {
+    [
+        PosPair(0, 1),
+        PosPair(0, 11),
+        PosPair(0, 21),
+        PosPair(11, 1),
+        PosPair(11, 11),
+        PosPair(11, 21),
+        PosPair(21, 1),
+        PosPair(21, 11),
+        PosPair(21, 21),
+
+        PosPair(8, 9),
+        PosPair(8, 19),
+        PosPair(8, 29),
+        PosPair(18, 9),
+        PosPair(18, 19),
+        PosPair(18, 29),
+        PosPair(28, 9),
+        PosPair(28, 19),
+        PosPair(28, 29),
+    ]
+}
+
 pub const fn get_scissor_indices() -> [PosPair; 17] {
     let mut res = [PosPair::default(); 17];
 
@@ -512,7 +554,7 @@ pub(crate) fn layout_name(entry: &std::fs::DirEntry) -> Option<String> {
 
 pub(crate) fn format_layout_str(layout_str: &str) -> String {
     layout_str
-        .split("\n")
+        .split('\n')
         .take(3)
         .map(|line| line.split_whitespace().take(10).collect::<String>())
         .collect::<String>()
@@ -521,23 +563,22 @@ pub(crate) fn format_layout_str(layout_str: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fxhash::FxHashSet;
+    use ahash::AHashSet as HashSet;
 
     #[test]
     fn affects_scissors() {
         let indices = get_scissor_indices()
             .into_iter()
-            .map(|PosPair(i1, i2)| [i1, i2])
-            .flatten()
-            .collect::<FxHashSet<usize>>();
+            .flat_map(|PosPair(i1, i2)| [i1, i2])
+            .collect::<HashSet<_>>();
 
-        for i in 0..30 {
+        (0..30).for_each(|i| {
             if indices.contains(&i) {
                 assert!(AFFECTS_SCISSOR[i], "failed on {i}");
             } else {
                 assert!(!AFFECTS_SCISSOR[i], "failed on {i}");
             }
-        }
+        });
     }
 
     #[test]

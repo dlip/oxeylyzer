@@ -1,10 +1,10 @@
 use anyhow::Result;
-use fxhash::FxHashMap;
+use ahash::AHashMap as HashMap;
 use smartstring::{Compact, LazyCompact, SmartString};
 
 #[derive(Clone)]
 pub struct Translator {
-    pub table: FxHashMap<char, SmartString<Compact>>,
+    pub table: HashMap<char, SmartString<Compact>>,
     pub is_raw: bool,
     pub(crate) is_empty: bool,
 }
@@ -41,9 +41,10 @@ impl std::ops::Add for Translator {
 }
 
 impl Translator {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TranslatorBuilder {
         TranslatorBuilder {
-            table: FxHashMap::default(),
+            table: HashMap::default(),
             is_raw: false,
         }
     }
@@ -91,7 +92,7 @@ impl Translator {
     pub fn translate_arr(&self, arr: &[char]) -> SmartString<LazyCompact> {
         let mut res = SmartString::<LazyCompact>::new();
 
-        for c in arr.into_iter() {
+        for c in arr.iter() {
             if let Some(replacement) = self.table.get(c) {
                 res.push_str(replacement);
             } else {
@@ -103,7 +104,7 @@ impl Translator {
 }
 
 pub struct TranslatorBuilder {
-    table: FxHashMap<char, SmartString<Compact>>,
+    table: HashMap<char, SmartString<Compact>>,
     is_raw: bool,
 }
 
@@ -221,7 +222,7 @@ impl TranslatorBuilder {
                 match char::from_u32(i) {
                     Some(c) if !c.is_control() => {
                         self.keep_one(c);
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -511,7 +512,7 @@ impl TranslatorBuilder {
 
     pub fn build(&mut self) -> Translator {
         Translator {
-            is_empty: self.table.len() == 0,
+            is_empty: self.table.is_empty(),
             table: std::mem::take(&mut self.table),
             is_raw: self.is_raw,
         }
