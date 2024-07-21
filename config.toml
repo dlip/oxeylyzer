@@ -1,7 +1,7 @@
 pins = """
-xxxxx xx.xx
-xxxxx x...x
-x...x xxx.x
+.xxxx xxxx.
+.xxxx xxxx.
+.xxxx xxxx.
 """
 
 [defaults]
