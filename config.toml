@@ -1,7 +1,7 @@
 pins = """
-x...x x...x
-x.x.x x.x.x
-x...x x...x
+xxxxx xxxxx
+xxxxx xxxxx
+....x x....
 """
 
 [defaults]
@@ -29,7 +29,7 @@ bad_redirects_sfs = 7.5
 
 [weights.max_finger_use]
 penalty = 2.5
-pinky = 1.0
+pinky = 9.0
 ring = 14.0
 middle = 20.0
 index = 20.0
