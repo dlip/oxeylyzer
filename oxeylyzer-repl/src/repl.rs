@@ -3,7 +3,7 @@ use std::path::Path;
 
 use indexmap::IndexMap;
 use itertools::Itertools;
-use oxeylyzer_core::{generate::LayoutGeneration, layout::*, load_text, weights::Config};
+use oxeylyzer_core::{generate::LayoutGeneration, layout::*, load_text, rayon, weights::Config};
 
 use crate::corpus_transposition::CorpusConfig;
 use crate::tui::*;
@@ -14,6 +14,7 @@ pub struct Repl {
     saved: IndexMap<String, FastLayout>,
     temp_generated: Vec<FastLayout>,
     pins: Vec<usize>,
+    thread_pool: rayon::ThreadPool,
 }
 
 impl Repl {
@@ -24,6 +25,11 @@ impl Repl {
         let config = Config::with_loaded_weights();
         let language = config.defaults.language.clone();
         let pins = config.pins.clone();
+
+        let thread_pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(config.defaults.max_cores)
+            .build()
+            .unwrap();
 
         let mut gen = LayoutGeneration::new(
             config.defaults.language.clone().as_str(),
@@ -43,6 +49,7 @@ impl Repl {
             gen,
             temp_generated: Vec::new(),
             pins,
+            thread_pool,
         })
     }
 
@@ -92,8 +99,19 @@ impl Repl {
 
     fn placeholder_name(&self, layout: &FastLayout) -> Result<String, String> {
         for i in 1..1000usize {
-            let new_name_bytes = layout.matrix[10..14].to_vec();
-            let mut new_name = self.gen.data.convert_u8.as_str(new_name_bytes.as_slice());
+            let new_name_bytes = layout
+                .matrix
+                .into_iter()
+                .skip(10)
+                .take(4)
+                .collect::<Vec<_>>();
+
+            let mut new_name = self
+                .gen
+                .data
+                .convert_u8
+                .as_str(new_name_bytes.as_slice())
+                .replace('*', "");
 
             new_name.push_str(format!("{}", i).as_str());
 
@@ -306,13 +324,14 @@ impl Repl {
             Rank(_) => self.rank(),
             Generate(g) => {
                 println!("generating {} layouts...", g.count);
-                self.temp_generated = generate_n(&self.gen, g.count);
+                self.thread_pool.install(|| {
+                    self.temp_generated = generate_n(&self.gen, g.count);
+                });
             }
-            Improve(i) => match self.layout_by_name(&i.name) {
-                Some(l) => {
-                    self.temp_generated =
-                        generate_n_with_pins(&self.gen, i.count, l.clone(), &self.pins)
-                }
+            Improve(i) => match self.layout_by_name(&i.name).cloned() {
+                Some(l) => self.thread_pool.install(|| {
+                    self.temp_generated = generate_n_with_pins(&self.gen, i.count, l, &self.pins)
+                }),
                 None => return Err(format!("'{}' does not exist!", i.name)),
             },
             Save(s) => match (self.get_nth(s.n), s.name) {
@@ -332,11 +351,12 @@ impl Repl {
             Language(l) => match l.language {
                 Some(l) => {
                     let config = Config::with_loaded_weights();
-                    let language = l.to_str()
+                    let language = l
+                        .to_str()
                         .ok_or_else(|| format!("Language is invalid utf8: {:?}", l))?;
-    
+
                     println!("{language:?}");
-    
+
                     if let Ok(generator) = LayoutGeneration::new(language, "static", Some(config)) {
                         self.gen = generator;
                         self.saved = self
@@ -344,7 +364,7 @@ impl Repl {
                             .load_layouts("static/layouts", language)
                             .expect("couldn't load layouts lol");
                         self.language = language.to_string();
-    
+
                         println!(
                             "Set language to {}. Sfr: {:.2}%",
                             &language,
@@ -353,19 +373,19 @@ impl Repl {
                     } else {
                         return Err(format!("Could not load data for {}", language));
                     }
-                },
-                None => println!("Current language: {}", self.language)
-            }
+                }
+                None => println!("Current language: {}", self.language),
+            },
             Include(l) => {
-                self
-                    .gen
+                self.gen
                     .load_layouts("static/layouts", &l.language)
                     .map_err(|e| e.to_string())?
                     .into_iter()
                     .for_each(|(name, layout)| {
                         self.saved.insert(name, layout);
                     });
-                self.saved.sort_by(|_, a, _, b| a.score.partial_cmp(&b.score).unwrap());
+                self.saved
+                    .sort_by(|_, a, _, b| a.score.partial_cmp(&b.score).unwrap());
             }
             Languages(_) => {
                 std::fs::read_dir("static/language_data")
@@ -399,7 +419,9 @@ impl Repl {
                     load_text::load_raw(&l.language.display().to_string());
                 }
                 (false, false) => {
-                    let language = l.language.to_str()
+                    let language = l
+                        .language
+                        .to_str()
                         .ok_or_else(|| format!("Language is invalid utf8: {:?}", l.language))?;
 
                     let translator = CorpusConfig::new_translator(language, None);
