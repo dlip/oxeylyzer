@@ -1,0 +1,12 @@
+{
+    "name": "pengram",
+    "board": "ortho",
+    "layers": {
+        "main": [
+            "x y o u .  . l n w v",
+            "c i e a .  . h t s d",
+            "j p g f .  . r m b k"
+        ]
+    },
+    "fingering": "traditional"
+}

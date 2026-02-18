@@ -5,7 +5,7 @@ pins = """
 """
 
 [defaults]
-language = "shai"
+language = "english"
 trigram_precision = 1000
 keyboard_type = "ansi"
 max_cores = 32

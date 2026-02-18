@@ -1,0 +1,12 @@
+{
+    "name": "mf2",
+    "board": "ortho",
+    "layers": {
+        "main": [
+            "g f m h ;  ' q u p j",
+            "c s t r x  z a e n i",
+            "w v d l ,  . o k b y"
+        ]
+    },
+    "fingering": "traditional"
+}

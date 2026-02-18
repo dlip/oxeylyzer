@@ -1,0 +1,12 @@
+{
+    "name": "dane",
+    "board": "ortho",
+    "layers": {
+        "main": [
+            "x f o u .  . l d c v",
+            "y n e a .  . r t s w",
+            "k p j i .  . h m g b"
+        ]
+    },
+    "fingering": "traditional"
+}
